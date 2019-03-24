@@ -31,10 +31,10 @@ import co.cask.cdap.etl.api.batch.BatchRuntimeContext;
 import co.cask.cdap.etl.api.batch.BatchSource;
 import co.cask.cdap.etl.api.batch.BatchSourceContext;
 import co.cask.hydrator.common.LineageRecorder;
-import co.cask.hydrator.salesforce.plugin.BaseSalesforceConfig;
+import co.cask.hydrator.salesforce.SObjectDescriptor;
 import co.cask.hydrator.salesforce.SalesforceSchemaUtil;
-import co.cask.hydrator.salesforce.authenticator.AuthenticatorCredentials;
 import co.cask.hydrator.salesforce.parser.SalesforceQueryParser;
+import co.cask.hydrator.salesforce.plugin.BaseSalesforceConfig;
 import com.google.common.annotations.VisibleForTesting;
 import com.sforce.ws.ConnectionException;
 import org.apache.hadoop.conf.Configuration;
@@ -62,7 +62,7 @@ public class SalesforceBatchSource extends BatchSource<String, String, Structure
   private final Config config;
   private Schema schema;
 
-  SalesforceBatchSource(Config config) throws ConnectionException {
+  SalesforceBatchSource(Config config) {
     this.config = config;
   }
 
@@ -98,7 +98,8 @@ public class SalesforceBatchSource extends BatchSource<String, String, Structure
 
   @Override
   public void initialize(BatchRuntimeContext context) throws ConnectionException {
-    this.schema = SalesforceSchemaUtil.getSchemaFromQuery(config.getAuthenticatorCredentials(), config.getQuery());
+    SObjectDescriptor sObjectDescriptor = SObjectDescriptor.fromQuery(config.getQuery());
+    this.schema = SalesforceSchemaUtil.getSchema(config.getAuthenticatorCredentials(), sObjectDescriptor);
   }
 
   @Override
@@ -154,29 +155,16 @@ public class SalesforceBatchSource extends BatchSource<String, String, Structure
   }
 
   /**
-   * Request object for retrieving schema from the Salesforce
-   */
-  class Request {
-    String query;
-    String username;
-    String password;
-    String clientId;
-    String clientSecret;
-    String loginUrl;
-  }
-
-  /**
    * Get Salesforce schema by query.
    *
-   * @param request request with credentials and query
+   * @param config Salesforce Source Batch config
    * @return schema calculated from query
-   * @throws Exception is thrown by httpclientlib
+   * @throws ConnectionException in case error when establishing connection
    */
   @Path("getSchema")
-  public Schema getSchema(Request request) throws Exception {
-    return SalesforceSchemaUtil.getSchemaFromQuery(new AuthenticatorCredentials(request.username, request.password,
-                                                                                request.clientId, request.clientSecret,
-                                                                                request.loginUrl), request.query);
+  public Schema getSchema(Config config) throws ConnectionException {
+    SObjectDescriptor sObjectDescriptor = SObjectDescriptor.fromQuery(config.getQuery());
+    return SalesforceSchemaUtil.getSchema(config.getAuthenticatorCredentials(), sObjectDescriptor);
   }
 
   /**
