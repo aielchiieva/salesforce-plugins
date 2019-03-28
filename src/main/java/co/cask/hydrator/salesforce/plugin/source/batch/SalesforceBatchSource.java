@@ -17,7 +17,6 @@
 package co.cask.hydrator.salesforce.plugin.source.batch;
 
 import co.cask.cdap.api.annotation.Description;
-import co.cask.cdap.api.annotation.Macro;
 import co.cask.cdap.api.annotation.Name;
 import co.cask.cdap.api.annotation.Plugin;
 import co.cask.cdap.api.data.batch.Input;
@@ -33,11 +32,8 @@ import co.cask.cdap.etl.api.batch.BatchSourceContext;
 import co.cask.hydrator.common.LineageRecorder;
 import co.cask.hydrator.salesforce.SObjectDescriptor;
 import co.cask.hydrator.salesforce.SalesforceSchemaUtil;
-import co.cask.hydrator.salesforce.parser.SalesforceQueryParser;
-import co.cask.hydrator.salesforce.plugin.BaseSalesforceConfig;
 import com.google.common.annotations.VisibleForTesting;
 import com.sforce.ws.ConnectionException;
-import org.apache.hadoop.conf.Configuration;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -59,41 +55,11 @@ public class SalesforceBatchSource extends BatchSource<String, String, Structure
   static final String NAME = "SalesforceBatchSource";
   private static final Logger LOG = LoggerFactory.getLogger(SalesforceBatchSource.class);
 
-  private final Config config;
+  private final SalesforceSourceConfig config;
   private Schema schema;
 
-  SalesforceBatchSource(Config config) {
+  public SalesforceBatchSource(SalesforceSourceConfig config) {
     this.config = config;
-  }
-
-  static final class Config extends BaseSalesforceConfig {
-    private static final String PROPERTY_QUERY = "query";
-
-    @Description("The SOQL query to retrieve results from")
-    @Macro
-    private final String query;
-
-    Config(Configuration conf) {
-        super(null,
-              conf.get(SalesforceConstants.CLIENT_ID), conf.get(SalesforceConstants.CLIENT_SECRET),
-              conf.get(SalesforceConstants.USERNAME), conf.get(SalesforceConstants.PASSWORD),
-              conf.get(SalesforceConstants.LOGIN_URL));
-
-        this.query = conf.get(SalesforceConstants.QUERY);
-    }
-
-    public String getQuery() {
-      return query;
-    }
-
-    @Override
-    public void validate() {
-      super.validate();
-
-      if (!containsMacro(PROPERTY_QUERY)) {
-        SalesforceQueryParser.validateQuery(query);
-      }
-    }
   }
 
   @Override
@@ -109,7 +75,7 @@ public class SalesforceBatchSource extends BatchSource<String, String, Structure
   }
 
   @Override
-  public void prepareRun(BatchSourceContext context) throws ConnectionException {
+  public void prepareRun(BatchSourceContext context) {
     config.validate(); // validate when macros are already substituted
 
     LineageRecorder lineageRecorder = new LineageRecorder(context, config.referenceName);
@@ -128,7 +94,7 @@ public class SalesforceBatchSource extends BatchSource<String, String, Structure
 
   @Override
   public void transform(KeyValue<String, String> input,
-                        Emitter<StructuredRecord> emitter) throws Exception {
+                        Emitter<StructuredRecord> emitter) {
     StructuredRecord.Builder builder = StructuredRecord.builder(schema);
 
     String[] fieldNames = getValuesFromCSVRow(input.getKey());
@@ -162,7 +128,7 @@ public class SalesforceBatchSource extends BatchSource<String, String, Structure
    * @throws ConnectionException in case error when establishing connection
    */
   @Path("getSchema")
-  public Schema getSchema(Config config) throws ConnectionException {
+  public Schema getSchema(SalesforceSourceConfig config) throws ConnectionException {
     SObjectDescriptor sObjectDescriptor = SObjectDescriptor.fromQuery(config.getQuery());
     return SalesforceSchemaUtil.getSchema(config.getAuthenticatorCredentials(), sObjectDescriptor);
   }
